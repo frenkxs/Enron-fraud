@@ -76,8 +76,17 @@ I created three more financial features, based on the findings of the explorator
 ```
 I created the email-related features by 'thinking like a human' - simply by looking at 'what would make sense' given the data. Conversely, the financial features were driven by 'computer thinking' - by looking mostly at the disctibutions of the values and how they differ for pois and non-pois.
 
-In the end, my intitial set of features contained 16 features. I then run these 16 features through PCA (as part of my pipeline) to further reduce their dimension.
+In the end, my features_list contained 16 features. I then run these 16 features through PCA (as part of my pipeline) to further reduce their dimension.
 
+### Testing (new) features
+
+The newly created features - taken together as a whole - have significant impact on the model performance. Taking only the initial 10 features and using the same tuning procedure, the model performed poorly: although precision ranged well over 0.6, recall rarelly exceeded 0.17.
+
+How important the individual features are and how much they improve (or indeed contravene) the resulting model required additional thorough testing. Using all 16 features, the model had solid performance of around 0.3 - 0.4 for both precision and recall. However, they were two problems:  (1) My gridSearch CV didn't produce consistent results and the resulting algorithm didn't perform consistently (the performance could jump from 0.25 to 0.45, depending on the particular run of my gridsearchCV), (2) the feature importances produced by my Decision Tree algorithm were zero for all but three features.
+
+This suggested that some of the features were introducing to the model random noise, rather than improving its performance. I decided to cut down on both the number of features and the number of components to keep after PCA (the best performing model I could get at this stage had PCA'a n_components = 10, even though the Decision Tree algorithm effectively used only three - the importance of the other components was zero).
+
+After a second round of testing, I ended up with eleven features: the three new financial features  (restricted_stock_v_total_payments, restricted_stock_v_salary, salary_v_bonus) actually reduced the overall performance of the model as did the email features - to_messages and from_messages. Those five features thus didn't fulfill the expectation invested in them and had to leave the elite club of the final features.
 
 ## Algorithm selection 
 
@@ -88,19 +97,40 @@ I tested four algorithms: DecisionTree, Naive Bayes, SVM and k-means clusters. O
 
 To tune an algorithm is to find the best possible parametres for a given model and data. Different parametres for the same algorithm often produce very different models with different performance. It is therefore important to tune the algorithm to our needs and adjust it to our data (while avoiding overfitting to training data).
 
-I used pipelines and GridSearchCV to find the best possible parametres for the DecisionTree algorithm. Besides the algorithm tuning, the pipeline also contained feature transformation (PCA). I've run the GridSearchCV several times to get an idea what parameters get picked and then selected those that performed best in the validation phase.
+I used pipelines and GridSearchCV to find the best possible parametres for feature proprocessing (Scaling), feature transformation (PCA), and for the DecisionTree algorithm. I experimented with the different methods for scaling and with different number of components to keep after PCA. 
+
+### Scaling
+As the range of values of the different features ranged widely (thousands of dollars, number of emails, ratios), I used feature scaling to normalise the data before feeding them into PCA. In the end I opted for MinMaxScaler as it produced the best overall results. Besides MinMaxScaler, I also tried StandardScaler but the results were quite abysmal, with recall hardly exceeding 0.2.
+
+It's good to point out that the explained variance reported by PCA didn't change when running the PCA algoritm without previously scalling the features. However, the perfomance of the model without scaling went down (though it still worked quite decently - over 0.4 for both precision and recall).
+
+### PCA 
+The model performed the best with PCA's n_components = 2. It's interesting to note that as the n_components went up, the performance was declining, until it got to 9 or 10. At this point the performance reached only a slightly worse results than for n = 2. However, as the features importances obtained from the Decision Tree algorithm were zero for all but three features, keeping n_components = 2 seemed the most sensible option.
 
 The parametres of my algorithm:
 
 PCA:
 ```python  
-n_components = 10
+n_components = 2
 ```
+
 DecisionTree:
 ```python  
   criterion =  'entropy',
   max_depth = 2,
-  min_samples_split = 12,
+  min_samples_split = 14,
+```
+
+Explained variance ratio for PCA:
+```
+1. feature 0: 0.537905
+2. feature 1: 0.174883
+```
+
+Feature importances for Decision Tree algorithm:
+```
+1. feature 0 0.682892
+2. feature 1 0.317108
 ```
 
 ## Validation
@@ -111,12 +141,12 @@ I validated mu model using the test_classifier function. Given our data (lot of 
 
 The relevant metrics for our particular case are Precision and Recall. As there are only 18 pois in the dataset, the Accuracy doesn't tell us much about the model performance. If the model simply labels all employees as non-poi, it would be correct for most cases. 
 
-On the other hand Precision and Recall focus on how sucessful a given model is in identifying pois. - Precision is the fraction of how many times the model correctly identified a poi to the total times the model identified a poi. Recall complements Precision as the fraction of how many times the model correctly identified a poi to the total number of pois in the testing dataset.
+On the other hand Precision and Recall focus on how sucessful a given model is in identifying pois. - Precision is the fraction of how many times the model correctly identified a poi to the  total times the model identified someone as a poi (irrespective of whether the person actually was a poi). Recall complements Precision as the fraction of how many times the model correctly identified a poi to the total number of pois in the testing dataset.
 
 The Precision and Recall for my model is:
 
-- Precision: 0.53185
-- Recall: 0.45500
+- Precision: 0.54334
+- Recall: 0.56100
 
 (For the purposes of reproducibility I set random_state for the initial train-test split of the dataset, as well as the cross-validation and the final classifier.)
 
